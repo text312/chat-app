@@ -11,19 +11,24 @@ function formatTime(timestamp) {
 
 function MessageList({ messages, currentUserId }) {
   if (!messages.length) {
-    return <p>No messages yet. Start the conversation.</p>;
+    return <p className="muted">No messages yet. Start the conversation.</p>;
   }
 
   return (
-    <ul>
+    <ul className="message-list">
       {messages.map((message) => {
         const senderId = message.user?._id || message.user;
         const isCurrentUser = senderId === currentUserId;
 
         return (
-          <li key={message._id}>
-            <strong>{isCurrentUser ? "You" : message.user?.username || "User"}</strong>
-            <span> {formatTime(message.createdAt)}</span>
+          <li
+            key={message._id}
+            className={isCurrentUser ? "message-item own-message" : "message-item"}
+          >
+            <div className="message-head">
+              <strong>{isCurrentUser ? "You" : message.user?.username || "User"}</strong>
+              <span>{formatTime(message.createdAt)}</span>
+            </div>
             <p>{message.content}</p>
           </li>
         );

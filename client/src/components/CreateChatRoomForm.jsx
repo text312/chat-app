@@ -14,7 +14,7 @@ function CreateChatRoomForm({ onCreate, isLoading }) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form className="create-room-form" onSubmit={handleSubmit}>
       <h3>Create Chat Room</h3>
       <input
         type="text"

@@ -12,11 +12,15 @@ function ChatRoomMessages({ socket, token, user, room }) {
   });
 
   if (!roomId) {
-    return <p>Select or join a chat room to start messaging.</p>;
+    return (
+      <div className="message-empty-state">
+        <p>Select or join a chat room to start messaging.</p>
+      </div>
+    );
   }
 
   return (
-    <section>
+    <section className="messages-section">
       <h3>Room: {room.name}</h3>
       {error ? <p>{error}</p> : null}
       <MessageList messages={messages} currentUserId={user?.id} />

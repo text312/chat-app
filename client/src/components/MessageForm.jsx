@@ -14,7 +14,7 @@ function MessageForm({ onSend, isSending, disabled }) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form className="message-form" onSubmit={handleSubmit}>
       <input
         type="text"
         value={message}
