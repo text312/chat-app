@@ -115,6 +115,7 @@ function useChatRooms({ token, user }) {
   return {
     rooms,
     currentRoomId,
+    socket,
     isLoading,
     error,
     loadRooms,

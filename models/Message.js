@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const messageSchema = new mongoose.Schema(
   {
+    room: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ChatRoom",
+      required: true,
+      index: true,
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
