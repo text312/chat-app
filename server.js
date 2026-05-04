@@ -11,6 +11,7 @@ const Message = require("./models/Message");
 const ChatRoom = require("./models/ChatRoom");
 const authRoutes = require("./routes/authRoutes");
 const chatRoomRoutes = require("./routes/chatRooms");
+const chatMessagesRoutes = require("./routes/chatMessages");
 const { authMiddleware } = require("./middleware/authMiddleware");
 
 const app = express();
@@ -36,6 +37,7 @@ app.get("/health", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/chat-rooms", chatRoomRoutes);
+app.use("/api/chat-messages", chatMessagesRoutes);
 
 app.get("/api/messages", authMiddleware, async (req, res) => {
   try {
@@ -84,6 +86,16 @@ io.on("connection", (socket) => {
       io.to(roomId).emit("room:users", {
         roomId,
         users: updatedRoom ? updatedRoom.members : [],
+      });
+
+      const history = await Message.find({ room: roomId })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .populate("user", "username email");
+
+      socket.emit("room:history", {
+        roomId,
+        messages: history.reverse(),
       });
     } catch (error) {
       socket.emit("error", { message: "Unable to join room." });
@@ -143,19 +155,35 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("chat:message", async ({ content }) => {
-    if (!socket.data.userId || !content) {
+  socket.on("chat:message", async ({ roomId, content }) => {
+    const activeRoomId = roomId || socket.data.currentRoomId;
+    if (!socket.data.userId || !activeRoomId || !content) {
       return;
     }
 
     try {
+      const room = await ChatRoom.findById(activeRoomId);
+      if (!room) {
+        socket.emit("error", { message: "Room not found." });
+        return;
+      }
+
+      const isMember = room.members.some(
+        (memberId) => memberId.toString() === socket.data.userId
+      );
+      if (!isMember) {
+        socket.emit("error", { message: "Join room before sending messages." });
+        return;
+      }
+
       const message = await Message.create({
+        room: activeRoomId,
         user: socket.data.userId,
         content,
       });
 
       const populatedMessage = await message.populate("user", "username email");
-      io.emit("chat:message", populatedMessage);
+      io.to(activeRoomId).emit("chat:message", populatedMessage);
     } catch (error) {
       socket.emit("error", { message: "Unable to send message." });
     }
