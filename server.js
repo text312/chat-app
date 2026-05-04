@@ -8,6 +8,8 @@ const mongoose = require("mongoose");
 
 const User = require("./models/User");
 const Message = require("./models/Message");
+const authRoutes = require("./routes/authRoutes");
+const { authMiddleware } = require("./middleware/authMiddleware");
 
 const app = express();
 const server = http.createServer(app);
@@ -21,6 +23,7 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI =
   process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/chat_app";
+process.env.JWT_SECRET = process.env.JWT_SECRET || "dev_jwt_secret_change_me";
 
 app.use(cors());
 app.use(express.json());
@@ -29,7 +32,9 @@ app.get("/health", (req, res) => {
   res.status(200).json({ ok: true });
 });
 
-app.get("/api/messages", async (req, res) => {
+app.use("/api/auth", authRoutes);
+
+app.get("/api/messages", authMiddleware, async (req, res) => {
   try {
     const messages = await Message.find({})
       .sort({ createdAt: -1 })
