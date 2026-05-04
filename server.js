@@ -8,7 +8,9 @@ const mongoose = require("mongoose");
 
 const User = require("./models/User");
 const Message = require("./models/Message");
+const ChatRoom = require("./models/ChatRoom");
 const authRoutes = require("./routes/authRoutes");
+const chatRoomRoutes = require("./routes/chatRooms");
 const { authMiddleware } = require("./middleware/authMiddleware");
 
 const app = express();
@@ -33,6 +35,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/chat-rooms", chatRoomRoutes);
 
 app.get("/api/messages", authMiddleware, async (req, res) => {
   try {
@@ -48,6 +51,78 @@ app.get("/api/messages", authMiddleware, async (req, res) => {
 });
 
 io.on("connection", (socket) => {
+  socket.on("room:join", async ({ roomId, userId }) => {
+    if (!roomId || !userId) {
+      return;
+    }
+
+    try {
+      const room = await ChatRoom.findById(roomId);
+      if (!room) {
+        socket.emit("error", { message: "Chat room not found." });
+        return;
+      }
+
+      const isMember = room.members.some(
+        (memberId) => memberId.toString() === userId
+      );
+
+      if (!isMember) {
+        room.members.push(userId);
+        await room.save();
+      }
+
+      socket.join(roomId);
+      socket.data.currentRoomId = roomId;
+      socket.data.userId = userId;
+
+      const updatedRoom = await ChatRoom.findById(roomId).populate(
+        "members",
+        "username email"
+      );
+
+      io.to(roomId).emit("room:users", {
+        roomId,
+        users: updatedRoom ? updatedRoom.members : [],
+      });
+    } catch (error) {
+      socket.emit("error", { message: "Unable to join room." });
+    }
+  });
+
+  socket.on("room:leave", async ({ roomId, userId }) => {
+    if (!roomId || !userId) {
+      return;
+    }
+
+    try {
+      const room = await ChatRoom.findById(roomId);
+      if (!room) {
+        return;
+      }
+
+      room.members = room.members.filter(
+        (memberId) => memberId.toString() !== userId
+      );
+      await room.save();
+
+      socket.leave(roomId);
+      socket.data.currentRoomId = null;
+
+      const updatedRoom = await ChatRoom.findById(roomId).populate(
+        "members",
+        "username email"
+      );
+
+      io.to(roomId).emit("room:users", {
+        roomId,
+        users: updatedRoom ? updatedRoom.members : [],
+      });
+    } catch (error) {
+      socket.emit("error", { message: "Unable to leave room." });
+    }
+  });
+
   socket.on("join", async ({ username, email }) => {
     if (!username || !email) {
       socket.emit("error", { message: "Username and email are required." });
@@ -83,6 +158,37 @@ io.on("connection", (socket) => {
       io.emit("chat:message", populatedMessage);
     } catch (error) {
       socket.emit("error", { message: "Unable to send message." });
+    }
+  });
+
+  socket.on("disconnect", async () => {
+    const { currentRoomId, userId } = socket.data;
+
+    if (!currentRoomId || !userId) {
+      return;
+    }
+
+    try {
+      const room = await ChatRoom.findById(currentRoomId);
+      if (!room) {
+        return;
+      }
+
+      room.members = room.members.filter(
+        (memberId) => memberId.toString() !== userId
+      );
+      await room.save();
+
+      const updatedRoom = await ChatRoom.findById(currentRoomId).populate(
+        "members",
+        "username email"
+      );
+      io.to(currentRoomId).emit("room:users", {
+        roomId: currentRoomId,
+        users: updatedRoom ? updatedRoom.members : [],
+      });
+    } catch (error) {
+      // Ignore cleanup errors on disconnect.
     }
   });
 });
